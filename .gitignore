@@ -1,0 +1,75 @@
+# ── 凭证 / 密钥 ─────────────────────────────────────────────
+# 任何环境变量文件、Letta/DSH 的凭证文件、私钥与证书都不要进仓库
+.env
+.env.*
+*.env
+!.env.example
+.credentials.yaml
+.credentials.yml
+.credentials.json
+credentials.yaml
+credentials.yml
+secrets.yaml
+secrets.yml
+secrets.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+*.token
+.token
+settings.local.json
+.vscode/settings.json
+
+# ── 私人记忆（真实用户画像、人设、事件线）────────────────────
+# 运行时的 MemFS 记忆目录与收件箱都在仓库之外；仓库里只允许文档与夹具。
+# 若在本仓库内做本地调试，把真实记忆放这些位置，避免误提交。
+inbox/
+notes.jsonl
+notes.processing.jsonl
+recall.jsonl
+recall-index.json
+dream-state.json
+.letta/
+letta-state/
+memory/private/
+memory/human.md
+memory/persona.md
+memory/events/
+memory/people/
+memory/archive/
+private/
+*.private.md
+personal/
+
+# ── 运行日志与评测产物（含捕获的记忆快照、API 请求/响应）────
+*.log
+dream.log
+eval/runs/
+eval/model-runs/
+eval/**/api/
+*.stdout.json
+*.stderr.txt
+tmp/
+*.tmp
+*.bak
+
+# ── 依赖与构建产物 ─────────────────────────────────────────
+node_modules/
+.pnpm-store/
+dist/
+coverage/
+*.tgz
+
+# ── 编辑器 / 系统杂项 ──────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+*.swp
+*.swo
+*~

@@ -1,0 +1,21 @@
+{
+  "name": "dsh-letta-memory",
+  "version": "0.2.0",
+  "description": "Letta MemFS memory bridge for DeepSeek Harness: stable core memory in the system prompt, deep memory on demand, append-only note inbox for offline dreaming.",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "cordis.patch.yml"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

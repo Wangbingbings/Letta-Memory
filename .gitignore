@@ -28,23 +28,36 @@ settings.local.json
 # ── 私人记忆（真实用户画像、人设、事件线）────────────────────
 # 运行时的 MemFS 记忆目录与收件箱都在仓库之外；仓库里只允许文档与夹具。
 # 若在本仓库内做本地调试，把真实记忆放这些位置，避免误提交。
-inbox/
-notes.jsonl
-notes.processing.jsonl
-recall.jsonl
-recall-index.json
-dream-state.json
-.letta/
-letta-state/
-memory/private/
-memory/human.md
-memory/persona.md
-memory/events/
-memory/people/
-memory/archive/
-private/
+#
+# 规则一律用前导 / 锚定到仓库根，避免误伤 lib/memory/ 之类的源码目录。
+# 整目录忽略（而非逐个文件名），新增的记忆文件默认就不会被漏掉。
+
+# 根目录的助手笔记索引
+/MEMORY.md
+
+# 人设与用户画像：语气、情绪、相处边界，属于私人配置
+/persona.md
+/human.md
+
+# 整棵记忆树：architecture / delivery / events / people / topics / archive
+/memory/
+
+# Letta 运行时目录与收件箱
+/.letta/
+/letta-state/
+/inbox/
+
+# 追加式流水账与召回索引
+/notes.jsonl
+/notes.processing.jsonl
+/recall.jsonl
+/recall-index.json
+/dream-state.json
+
+# 其他私人目录与文件
+/private/
+/personal/
 *.private.md
-personal/
 
 # ── 运行日志与评测产物（含捕获的记忆快照、API 请求/响应）────
 *.log
@@ -73,3 +86,6 @@ desktop.ini
 *.swp
 *.swo
 *~
+
+# 本机助手的工作区数据（会话记忆、临时产物），不随仓库分发
+/.workbuddy/

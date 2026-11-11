@@ -34,7 +34,7 @@ const DEFAULTS = {
   /** 常驻核心区文件（相对 memoryDir，缺失则跳过）。 */
   coreFiles: ['MEMORY.md', 'persona.md', 'human.md'],
   /** 核心区总字符上限，超出按文件顺序截断。 */
-  maxCoreChars: 4000,
+  maxCoreChars: 5600,
   /** 系统提示段落 order（落在第一方指导之后、persona 后缀 10200 之前）。 */
   order: 1250,
   /** 是否注册记忆工具。 */

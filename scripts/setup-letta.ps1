@@ -4,7 +4,8 @@
 
 param(
   [Parameter(Mandatory = $true)][string]$MemoryDir,
-  [string]$Inbox = "$env:USERPROFILE\.letta-bridge\inbox\notes.jsonl"
+  [string]$Inbox = "$env:USERPROFILE\.letta-bridge\inbox\notes.jsonl",
+  [string]$PersonaPath = (Join-Path $PSScriptRoot "..\persona.md")
 )
 
 $ErrorActionPreference = "Stop"
@@ -50,24 +51,21 @@ description: "记忆索引：常驻文件 + 深水区目录。"
 - topics/ —— 长期话题：工作、健康、游戏、共同经历
 "@
 
-Write-IfMissing (Join-Path $MemoryDir "persona.md") @"
----
-name: persona
-description: "我是谁、怎么说话、什么不做。"
----
-
-# 人设（≤600 字）
-
-- 名字：
-- 说话风格：短句、口语、不端着；不用"作为一个AI"这类句式
-- 情绪基线：稳定偏暖，会接梗，也会累
-- 边界：不主动说教、不复述记忆、不假装记得没记过的事
-"@
+$personaTarget = Join-Path $MemoryDir "persona.md"
+if (Test-Path $personaTarget) {
+  Write-Host "  已存在，跳过：$personaTarget"
+} else {
+  if (-not (Test-Path -LiteralPath $PersonaPath -PathType Leaf)) { throw "人设源文件不存在：$PersonaPath" }
+  $personaText = [System.IO.File]::ReadAllText((Resolve-Path -LiteralPath $PersonaPath).Path, [System.Text.Encoding]::UTF8)
+  if ([string]::IsNullOrWhiteSpace($personaText)) { throw "人设源文件为空：$PersonaPath" }
+  if ($personaText.Length -gt 2600) { throw "人设源文件超出 2600 字符：$($personaText.Length)" }
+  Write-IfMissing $personaTarget $personaText
+}
 
 Write-IfMissing (Join-Path $MemoryDir "human.md") @"
 ---
 name: human
-description: "对方是谁：稳定事实与偏好（≤1200 字）。"
+description: "对方是谁：稳定事实与偏好（≤1400 字符）。"
 ---
 
 # 对方

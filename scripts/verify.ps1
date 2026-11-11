@@ -22,7 +22,7 @@ if (Test-Path $MemoryDir) {
     $p = Join-Path $MemoryDir $f
     if (Test-Path $p) {
       $len = (Get-Content $p -Raw -Encoding UTF8).Length
-      $limit = if ($f -eq "human.md") { 1200 } elseif ($f -eq "persona.md") { 600 } else { 800 }
+      $limit = if ($f -eq "human.md") { 1400 } elseif ($f -eq "persona.md") { 2600 } else { 1000 }
       Check "$f 存在" $true "$len 字（上限 $limit）"
       if ($len -gt $limit) { Write-Host "         ↑ 超预算，会让每轮输入变贵，让记忆管家压缩" -ForegroundColor Yellow }
     } else { Check "$f 存在" $false }

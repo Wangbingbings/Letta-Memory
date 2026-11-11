@@ -11,6 +11,6 @@
           - MEMORY.md
           - persona.md
           - human.md
-        maxCoreChars: 4000
+        maxCoreChars: 5600
         order: 1250
         enableTools: true

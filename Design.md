@@ -10,7 +10,7 @@
 
 | 接法 | 数据面 | 主循环 | 每轮额外成本 | 适配度 |
 |---|---|---|---|---|
-| **A. 文件桥（本方案）** | Letta MemFS 目录（git 版 markdown） | DSH | 0（核心区常驻 ~900 tokens，深水区按需） | ★★★★★ |
+| **A. 文件桥（本方案）** | Letta MemFS 目录（git 版 markdown） | DSH | 0 次额外模型调用（核心区常驻，深水区按需） | ★★★★★ |
 | B. SDK 会话桥 | Letta App Server（WebSocket） | DSH + Letta 各跑一次 | 每轮双份模型调用 | ★★☆ |
 | C. 全托管 | Letta agent 拥有对话 | Letta | 丢掉 DSH 的 compaction / tools / skills | ★ |
 
@@ -64,15 +64,19 @@
 
 | 文件 | 内容 | 上限 | 进上下文 |
 |---|---|---|---|
-| `persona.md` | 我是谁：语气、边界、说话习惯（可被聊天要求修改） | 600 字 | 每轮 |
-| `human.md` | 对方是谁：称呼、作息、口味、雷点、关系阶段；末尾「近期状态（周整理推断）」 | 1200 字 | 每轮 |
-| `MEMORY.md` | 索引：只列目录结构 | 800 字 | 每轮 |
+| `persona.md` | 我是谁：语气、边界、说话习惯、情绪动作与标志台词（可被聊天要求修改） | 2600 字符（含格式） | 每轮 |
+| `human.md` | 对方是谁：称呼、作息、口味、雷点、关系阶段；末尾「近期状态（周整理推断）」 | 1400 字符 | 每轮 |
+| `MEMORY.md` | 索引：只列目录结构 | 1000 字符 | 每轮 |
 | `events/YYYY-MM-DD.md` | 有日期的事件线，frontmatter 带 `importance: 1-3` | 单条 ≤200 字 | 按需 |
 | `archive/events/…` | 淡忘的旧事件（不参与检索） | — | 仅直接读取 |
 | `people/<名字>.md` | 对方生活里的人 | 400 字 | 按需 |
 | `topics/<话题>.md` | 长期话题 | 800 字 | 按需 |
 
 整理规则：日常 [prompts/memory-curator.md](prompts/memory-curator.md)，每周叠加 [prompts/weekly-reflection.md](prompts/weekly-reflection.md)，`dream.ps1` 每次读它们。人设被改坏时用 MemFS 的 git 历史回滚。
+
+仓库根目录的 [persona.md](persona.md) 是不预设姓名的人设源文件，初始化脚本在 MemFS 缺少 persona 时原样复制；已有文件保留，也可用 `-PersonaPath` 指定另一份人设。插件实际读取的是配置的 `<MEMORY_DIR>/persona.md`，修改仓库源文件不会自动同步已有 MemFS。
+
+三份常驻文件在上一版基线上各增加 200 字符：persona 2600、human 1400、MEMORY 1000，合计 5000 字符。插件 `maxCoreChars` 同步从 5000 提至 5600，保留原有 600 字符余量，避免后置的 human 被截断。上限是 UTF-16 字符数，不等于 token 数；核心正文去掉 frontmatter 后共享总预算，格式也计入字符。人设每轮常驻，答复前静默核对，不维护“每十轮”计数或每轮改写文件。
 
 ---
 
@@ -97,7 +101,7 @@
 
 | 项 | 本方案 | 对照：在线蒸馏型（每条消息跑一次 LLM） |
 |---|---|---|
-| 每轮注入 | 核心区 ~900 tokens（命中缓存 ≈ 0.02 元/M） | 召回 1–3k tokens + 摘要维护 |
+| 每轮注入 | 核心正文最多 5600 字符，token 数与费用按模型实测；不变部分可命中前缀缓存 | 召回 1–3k tokens + 摘要维护 |
 | 写入成本 | `memory_note` = 0 次 LLM 调用 | 每条消息 2–3k tokens 蒸馏 |
 | 整合成本 | 每 200 条笔记一次，约 8k 输入 + 1k 输出 | 40 条/天 × 2.7k tokens |
 | 周整理 | 每周一次，≈1 万 token 输入（≈0.01–0.02 元） | — |
@@ -125,6 +129,7 @@ Letta 的 sleep-time agent 读完整对话原文；本方案只整合模型主�
 letta-bridge/
 ├── README.md                     ← 本文（设计）
 ├── HANDOFF.md                    ← 安装、验收、排错（自包含，内嵌全部文件全文）
+├── persona.md                    ← 人设源文件（初始化时复制进 MemFS）
 ├── plugin/                       ← DSH 插件（零依赖；核心区注入 + 4 个工具）
 │   ├── package.json
 │   ├── cordis.patch.yml

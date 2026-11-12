@@ -35,9 +35,11 @@ settings.local.json
 # 根目录的助手笔记索引
 /MEMORY.md
 
-# 人设与用户画像：语气、情绪、相处边界，属于私人配置
-/persona.md
+# 用户画像：真实人物信息（称呼、作息、雷点），属于私人配置
 /human.md
+
+# 注意：人设源文件 persona.md 是公开的——它是产品的一部分，
+# personas/README.md 的默认 whale 卡与 Design.md 都直接引用它，不要加回忽略。
 
 # 整棵记忆树：architecture / delivery / events / people / topics / archive
 /memory/

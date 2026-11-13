@@ -3,7 +3,9 @@ param(
   [Parameter(Mandatory = $true)][string]$MemoryDir,
   [string]$Inbox = "$env:USERPROFILE\.letta-bridge\inbox\notes.jsonl",
   [string]$DshHome = "",
-  [string]$Profile = "desktop"
+  [string]$Profile = "desktop",
+  # 不用人设模式（setup -Persona none）：persona.md 缺失属正常，不报失败
+  [switch]$NoPersona
 )
 
 $ok = $true
@@ -20,6 +22,11 @@ if (Test-Path $MemoryDir) {
   Check "是 git 仓库（Letta MemFS 应自带）" (Test-Path (Join-Path $MemoryDir ".git"))
   foreach ($f in @("MEMORY.md", "persona.md", "human.md")) {
     $p = Join-Path $MemoryDir $f
+    if ($f -eq "persona.md" -and $NoPersona) {
+      if (Test-Path $p) { Write-Host "  [info] persona.md 存在；-NoPersona 只影响校验，不会删除文件" -ForegroundColor Yellow }
+      else { Write-Host "  [info] persona.md 不存在（不用人设模式，正常）" -ForegroundColor Gray }
+      continue
+    }
     if (Test-Path $p) {
       $len = (Get-Content $p -Raw -Encoding UTF8).Length
       $limit = if ($f -eq "human.md") { 1400 } elseif ($f -eq "persona.md") { 2600 } else { 1000 }

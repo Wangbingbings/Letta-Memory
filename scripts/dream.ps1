@@ -12,8 +12,8 @@ param(
   [Parameter(Mandatory = $true)][string]$AgentId,
   [Parameter(Mandatory = $true)][string]$MemoryDir,
   [string]$Inbox = "$env:USERPROFILE\.letta-bridge\inbox\notes.jsonl",
-  [string]$CuratorPrompt = (Join-Path $PSScriptRoot "..\prompts\memory-curator.md"),
-  [string]$WeeklyPrompt = (Join-Path $PSScriptRoot "..\prompts\weekly-reflection.md"),
+  [string]$CuratorPrompt,
+  [string]$WeeklyPrompt,
   [int]$MaxNotes = 200,
   [int]$WeeklyEveryDays = 7,
   # 立即执行一次周整理（不看上次日期）
@@ -23,6 +23,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+# PS 5.1 在 -File 模式下绑定 [Parameter] 参数时 $PSScriptRoot 为空，默认值必须在脚本体内补。
+if (-not $CuratorPrompt) { $CuratorPrompt = Join-Path $PSScriptRoot "..\prompts\memory-curator.md" }
+if (-not $WeeklyPrompt) { $WeeklyPrompt = Join-Path $PSScriptRoot "..\prompts\weekly-reflection.md" }
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 $dir = Split-Path $Inbox -Parent
 $processing = Join-Path $dir "notes.processing.jsonl"

@@ -64,7 +64,7 @@
 | 📦 **阁楼（archive）** | `archive/events/…`（已淡忘的旧事）                        | 不进、不参与检索            | 只在被直接读取时「唤回」            |
 | 🕰️ **时间机器**       | git 历史                                            | 永不加载                | 人设被改坏？`git revert` 一键回滚 |
 
-人设源文件在 [persona.md](persona.md)，不预设角色姓名，包含情绪动作、标志台词和相处边界；三份常驻文件在上一版基线上各扩容 200 字符，当前上限为 persona 2600、human 1400、MEMORY 1000 字符。初始化时只向缺少 persona 的 MemFS 复制源文件，已有文件保留。在线插件读取的是配置的 MemFS 目录，修改仓库源文件后需另行同步到实际目录。仓库 [personas/](personas/README.md) 目录另提供四张备选人设卡（温柔治愈 / 清冷傲娇 / 活泼元气 / 沉稳文艺）：初始化时用 `-PersonaPath` 指定，也可以不用任何人设（初始化后删除 MemFS 里的 `persona.md`，插件自动跳过）。**让 AI 代为配置时，请让它先向你确认人设选择，再执行初始化。**
+人设源文件在 [persona.md](persona.md)，不预设角色姓名，包含情绪动作、标志台词和相处边界；三份常驻文件在上一版基线上各扩容 200 字符，当前上限为 persona 2600、human 1400、MEMORY 1000 字符。初始化时只向缺少 persona 的 MemFS 复制源文件，已有文件保留。在线插件读取的是配置的 MemFS 目录，修改仓库源文件后需另行同步到实际目录。仓库 [personas/](personas/README.md) 目录另提供四张备选人设卡（温柔治愈 / 清冷傲娇 / 活泼元气 / 沉稳文艺）：初始化时用 `-Persona whale|gentle|tsundere|genki|literary` 选择（默认 `whale`），也可以用 `-Persona none` 不装人设（插件自动跳过缺失的 `persona.md`；人设选择只在初始化时生效）。**让 AI 代为配置时，请让它先向你确认人设选择，再执行初始化。**
 
 ---
 

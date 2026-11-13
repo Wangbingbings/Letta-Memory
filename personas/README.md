@@ -1,7 +1,8 @@
 # 人设库与选择机制 · 设计提案
 
-> 状态：**提案，未实现**。插件、脚本、prompts 代码均未改动；「先选人设」提醒已写入 HANDOFF.md（§0 第 10 条、Step 4 第 3 小步、§5.11 引言、§7 第 1 条）与 README.md。
-> 目标：用户可以自行选择人设（初始化时选、聊天中随时换），也可以明确选择**不用任何人设**。
+> 状态：**初始化选择已实现**（`setup-letta.ps1 -Persona`，含 `none`）；聊天驱动切换仍是提案。
+> 目标：用户在**框架初始化时**选择性注入人设（不选则 `whale`，也可明确选 `none` 不用人设）。
+> `personas/whale.md` 已补齐（根 `persona.md` 的副本）。
 
 ---
 
@@ -9,7 +10,7 @@
 
 | id | 文件 | 类型 | 自称 | 一句话 | 字符数 |
 |---|---|---|---|---|---|
-| `whale`（默认） | [../persona.md](../persona.md) | 萌系宠物 | 本鲸／人家 | 戴眼镜系围裙的小鲸，讨饭、嘴硬、炸毛、装死 | 2274 |
+| `whale`（默认） | [whale.md](whale.md) | 萌系宠物 | 本鲸／人家 | 戴眼镜系围裙的小鲸，讨饭、嘴硬、炸毛、装死 | 2274 |
 | `gentle` | [gentle.md](gentle.md) | 温柔治愈 | 我 | 深夜留着的一盏小灯，先听完再说话 | 1410 |
 | `tsundere` | [tsundere.md](tsundere.md) | 清冷傲娇 | 本猫 | 系铃铛的黑猫，嘴硬心软，傲娇有底线 | 1424 |
 | `genki` | [genki.md](genki.md) | 活泼元气 | 我 | 系三角巾的小狗，精力充沛，懂分寸 | 1440 |
@@ -29,7 +30,7 @@
 
 | 已有能力 | 位置 | 对选择机制的意义 |
 |---|---|---|
-| 初始化指定源文件 | `setup-letta.ps1 -PersonaPath` | 初始化选择已有入口，缺的只是"选项列表"和 `none` |
+| 初始化指定源文件 | `setup-letta.ps1 -Persona` / `-PersonaPath` | 初始化选择已有入口；`-Persona` 直接按 id 选卡，`none` 跳过 persona |
 | 已存在不覆盖 | setup `Write-IfMissing` | 切换必须是显式动作，不会被初始化悄悄冲掉 |
 | 核心文件缺失自动跳过 | 插件 `renderCore`（try/catch continue，空 body 也跳过） | **「不用人设」零改动可行**：MemFS 没有 persona.md 即可 |
 | mtime 缓存 | 插件 `createCoreCache` | 换卡后下一轮组装自动生效，DSH 不用重启 |
@@ -38,7 +39,7 @@
 
 ## 4. 方案对比
 
-| | A. 聊天驱动（推荐） | B. 离线切换脚本 | C. 插件配置项 |
+| | A. 聊天驱动（可选） | B. 离线切换脚本 | C. 插件配置项 |
 |---|---|---|---|
 | 入口 | 用户直接说"换成黑猫" | 跑 `switch-persona.ps1` | 改插件 config |
 | 生效时机 | 下次整合（每天 03:00，可手动补跑 dream） | 立即 | 立即 |
@@ -46,22 +47,24 @@
 | 需要改动 | setup 同步库 + 管家新规则 + MEMORY 模板 | 新脚本 + 并发保护 | 插件代码 |
 | 架构一致性 | ✅ 保持「只有 Letta 写 MemFS」、单一事实源 | ⚠️ 打破单写者原则（setup 已是初始化期例外） | ❌ 双事实源：配置指一份、MemFS 一份，管家微调会与配置漂移 |
 
-**推荐 A**：QQ 陪聊场景里"说一句话就换"是最自然的交互；库放进 MemFS 深水区后，管家照现有职责切分执行，不新增写者。B 作为要求立即生效时的备选。C 不建议。
+**主路径是初始化选择**（§5.2）：用户在建 MemFS 时选一次，运行期不再自动换。若额外需要"聊天里随时换"，推荐 A：QQ 陪聊场景里"说一句话就换"最自然；库放进 MemFS 深水区后，管家照现有职责切分执行，不新增写者。B 作为要求立即生效时的备选。C 不建议。
 
-## 5. 方案 A 详细设计
+## 5. 方案 A 详细设计（以初始化选择为主路径）
 
 ### 5.1 人设库进 MemFS（深水区）
 
-- setup 时把仓库 `personas/*.md` 与根 `persona.md`（作为 `whale.md`）同步到 `<MemFS>/personas/`。子目录不进上下文，只通过 `memory_list / memory_read` 按需读——**不占 5600 核心预算**。
+- setup 时把仓库 `personas/*.md` 同步到 `<MemFS>/personas/`。子目录不进上下文，只通过 `memory_list / memory_read` 按需读——**不占 5600 核心预算**。
 - `MEMORY.md` 索引加一行：`personas/ —— 人设库，对方要求时切换`。
 - 库文件是只读源：管家只从中复制，不修改库文件本身。
 
-### 5.2 初始化选择
+### 5.2 初始化选择（主路径，已实现）
 
-- 未来参数 `-Persona <whale|gentle|tsundere|genki|literary|none>`，默认 `whale`；保留 `-PersonaPath` 兼容自定义源。
-- `none`：不写 persona.md，MEMORY.md 索引去掉 persona 行。插件自然跳过，无需任何插件改动。
+- `setup-letta.ps1 -Persona <whale|gentle|tsundere|genki|literary|none>`，默认 `whale`；保留 `-PersonaPath` 兼容自定义源（二者互斥）。
+- 选择一个 id 时，从 `personas/<id>.md` 复制对应卡片到 `persona.md`（`whale.md` 缺失时回退仓库根 `persona.md`）；`none` 时不写 persona.md，MEMORY.md 模板去掉 persona 行。插件自然跳过，无需任何插件改动。
+- setup 同时把 `personas/*.md`（不含 README）同步到 `<MemFS>/personas/`，只补缺失、不覆盖。
+- 这是当前设想的核心：初始化即定型，运行期不自动切换。
 
-### 5.3 聊天切换（核心流程）
+### 5.3 聊天切换（可选，非主路径）
 
 1. 用户问"有哪些人设？" → 陪聊 agent 读 MEMORY.md / `memory_list personas/` → 报选项。
 2. 用户说"换成傲娇黑猫" → `memory_note(text: "对方要求把人设切换为 tsundere", tags: ["persona","switch"])`。
@@ -73,8 +76,9 @@
 
 ### 5.4 none 模式语义
 
+- 初始化：`setup-letta.ps1 -Persona none` 不创建 persona.md，MEMORY.md 模板不列 persona；`verify.ps1 -NoPersona` 不把缺失判为失败。**已实现。**
 - 插件只注入 MEMORY + human：有记忆、无角色表演的普通助手。
-- 管家**忽略 persona 微调笔记**，不创建 persona.md；只有用户明确说"启用人设"才重建。
+- 运行期（聊天里说"启用人设/停用"）的管家规则尚未实现，见下方清单；当前需手动替换/删除 `<MemFS>/persona.md` 并 commit。
 - human.md / events / people / topics 照常工作，不受影响。
 
 ### 5.5 切换 vs 微调的边界
@@ -108,14 +112,15 @@
 - **库不进核心区**：personas/ 是子目录，天然不注入；不要把它加进 `coreFiles`。
 - **转述风险**：管家可能"总结"库文件而非逐字复制 → 规则强调逐字，验收时 git diff 抽查。
 - **预算**：任一时刻只有一份 persona.md 进上下文，5600 总预算不变。
-- **none 不是故障**：`verify.ps1` 不应把 persona 缺失报为错误（实现时核对其现有逻辑）。
-- **文档同步**：实现时按仓库约定同步 HANDOFF.md §5 全文及 README / Design.md 说明。
+- **none 不是故障**：`verify.ps1 -NoPersona` 把 persona 缺失按 `[info]` 处理，不判失败。注意 `-Persona none` 不会删除已存在的 `persona.md`，只警告。
+- **文档同步**：HANDOFF.md §5 内嵌源码、Step 4 与 README 已同步 `-Persona` / `none` / `-NoPersona`。聊天切换相关文档仍是提案。
 
-## 8. 实现清单（本次均未执行）
+## 8. 实现清单
 
-- [ ] `setup-letta.ps1`：同步人设库进 MemFS + `-Persona` 参数 + none 支持
-- [ ] `prompts/memory-curator.md`：切换 / 停用 / none 模式规则（§5.6）
-- [ ] MEMORY.md 模板：personas/ 索引行
+- [x] `personas/whale.md`：补齐默认人设规范文件（根 `persona.md` 副本）
+- [x] `setup-letta.ps1`：同步人设库进 MemFS + `-Persona` 参数 + none 支持
+- [x] MEMORY.md 模板：persona 行按模式生成 + personas/ 索引行
+- [x] `verify.ps1`：`-NoPersona` 下 persona 缺失不误报
+- [x] HANDOFF.md / README.md 同步
+- [ ] `prompts/memory-curator.md`：聊天切换 / 停用 / none 模式规则（§5.6，属运行期切换，本次未做）
 - [ ] （可选）`scripts/switch-persona.ps1`：方案 B
-- [ ] `verify.ps1`：none 模式下 persona 缺失不误报
-- [ ] HANDOFF.md / README.md / Design.md 同步

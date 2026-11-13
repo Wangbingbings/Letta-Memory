@@ -17,7 +17,7 @@
 7. **卡住就停**：遇到 §8 没覆盖的错误，把「执行的命令 + 原样错误 + 相关目录列表」交给用户，不要改架构、不要换方案。
 8. **成功标准**：§7 六条全过，缺一不可。
 9. **编码**：`.ps1` → **UTF-8 with BOM**（PowerShell 5.1 按系统代码页解码无 BOM 的中文脚本会吃掉引号）；`.js` / `.json` / `.yml` / `.md` → UTF-8 **无 BOM**。写完必须跑 Step 2 自检。
-10. **先选人设，再初始化**：Step 4 跑 `setup-letta.ps1` 之前，先问用户要用哪张人设卡——仓库 `personas/` 目录提供四张备选卡（温柔治愈 / 清冷傲娇 / 活泼元气 / 沉稳文艺），默认是 `persona.md` 的小鲸，也**可以不用任何人设**。不要不问就装默认；选法与"不用人设"的操作见 Step 4 第 3 小步。
+10. **先选人设，再初始化**：Step 4 跑 `setup-letta.ps1` 之前，先问用户要用哪张人设卡——`-Persona` 可选 `whale`（默认）/ `gentle` / `tsundere` / `genki` / `literary` / `none`（不用人设），也支持 `-PersonaPath` 自定义源文件。不要不问就装默认；见 Step 4 第 3 小步。
 
 ---
 
@@ -601,15 +601,32 @@ Write-Host "  桌面版请从 GUI 装插件（profile=desktop，CLI 不可写）
 ```powershell
 # 初始化 Letta 侧：（缺失时）装 CLI、在记忆管家的 MemFS 里补齐骨架、建 MemFS 之外的收件箱目录。
 # 前提：已完成 `letta connect` 并建好记忆管家 agent，拿到了它的 MemFS 目录（见 HANDOFF Step 3–4）。
-# 用法：powershell -NoProfile -File .\setup-letta.ps1 -MemoryDir "<MEMORY_DIR>"
+# 用法：powershell -NoProfile -File .\setup-letta.ps1 -MemoryDir "<MEMORY_DIR>" [-Persona <id>] [-PersonaPath <file>]
+#   -Persona：从仓库 personas/ 选卡，whale（默认）/ gentle / tsundere / genki / literary / none。
+#             none = 不创建 persona.md（插件自动跳过，只有记忆、没有角色表演）。
+#   -PersonaPath：自定义人设源文件；与 -Persona 互斥。
 
 param(
   [Parameter(Mandatory = $true)][string]$MemoryDir,
   [string]$Inbox = "$env:USERPROFILE\.letta-bridge\inbox\notes.jsonl",
-  [string]$PersonaPath = (Join-Path $PSScriptRoot "..\persona.md")
+  [string]$PersonaPath,
+  [ValidateSet("whale", "gentle", "tsundere", "genki", "literary", "none")][string]$Persona = "whale"
 )
 
 $ErrorActionPreference = "Stop"
+# PS 5.1 在 -File 模式下绑定 [Parameter] 参数时 $PSScriptRoot 为空，默认值必须在脚本体内补。
+if ($PersonaPath -and $PSBoundParameters.ContainsKey("Persona")) {
+  throw "-PersonaPath 与 -Persona 不能同时使用：二选一。"
+}
+$personaLibrary = Join-Path $PSScriptRoot "..\personas"
+if (-not $PersonaPath -and $Persona -ne "none") {
+  $candidate = Join-Path $personaLibrary "$Persona.md"
+  # 兼容旧布局：没有 personas/whale.md 时回退仓库根 persona.md
+  if (-not (Test-Path -LiteralPath $candidate -PathType Leaf) -and $Persona -eq "whale") {
+    $candidate = Join-Path $PSScriptRoot "..\persona.md"
+  }
+  $PersonaPath = $candidate
+}
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 
 Write-Host "== 1/3 检查 Node 与 Letta CLI ==" -ForegroundColor Cyan
@@ -634,7 +651,18 @@ function Write-IfMissing([string]$Path, [string]$Content) {
   Write-Host "  写入：$Path"
 }
 
-Write-IfMissing (Join-Path $MemoryDir "MEMORY.md") @"
+$coreLines = @()
+if ($Persona -ne "none" -or $PersonaPath) { $coreLines += "- persona.md —— 我是谁：语气、边界、说话习惯" }
+$coreLines += "- human.md —— 对方是谁：称呼、作息、口味、雷点、关系阶段"
+$deepLines = @(
+  "- events/ —— 按日期的事件线，一天一个文件",
+  "- people/ —— 对方生活里出现的人",
+  "- topics/ —— 长期话题：工作、健康、游戏、共同经历"
+)
+if (Test-Path -LiteralPath $personaLibrary -PathType Container) {
+  $deepLines += "- personas/ —— 人设库（只读源），对方要求时按卡片切换"
+}
+$memoryTemplate = @"
 ---
 name: MEMORY
 description: "记忆索引：常驻文件 + 深水区目录。"
@@ -643,23 +671,48 @@ description: "记忆索引：常驻文件 + 深水区目录。"
 # 记忆索引
 
 常驻（每轮都在上下文里，务必短）：
-- persona.md —— 我是谁：语气、边界、说话习惯
-- human.md —— 对方是谁：称呼、作息、口味、雷点、关系阶段
+$($coreLines -join "`n")
 
 深水区（不进上下文，按需 read/search）：
-- events/ —— 按日期的事件线，一天一个文件
-- people/ —— 对方生活里出现的人
-- topics/ —— 长期话题：工作、健康、游戏、共同经历
+$($deepLines -join "`n")
 "@
+Write-IfMissing (Join-Path $MemoryDir "MEMORY.md") $memoryTemplate
+
+# 人设库：同步到 MemFS 深水区（只补缺失，不覆盖已有文件；库文件是只读源）
+if (Test-Path -LiteralPath $personaLibrary -PathType Container) {
+  $libTarget = Join-Path $MemoryDir "personas"
+  New-Item -ItemType Directory -Force -Path $libTarget | Out-Null
+  foreach ($card in Get-ChildItem -LiteralPath $personaLibrary -Filter "*.md" -File | Where-Object { $_.Name -ne "README.md" }) {
+    Write-IfMissing (Join-Path $libTarget $card.Name) ([System.IO.File]::ReadAllText($card.FullName, [System.Text.Encoding]::UTF8))
+  }
+  $whaleTarget = Join-Path $libTarget "whale.md"
+  if (-not (Test-Path -LiteralPath $whaleTarget)) {
+    $rootPersona = Join-Path $PSScriptRoot "..\persona.md"
+    if (Test-Path -LiteralPath $rootPersona -PathType Leaf) {
+      Write-IfMissing $whaleTarget ([System.IO.File]::ReadAllText((Resolve-Path -LiteralPath $rootPersona).Path, [System.Text.Encoding]::UTF8))
+    }
+  }
+  Write-Host "  人设库：$libTarget"
+} else {
+  Write-Host "  未找到人设库目录，跳过同步：$personaLibrary"
+}
 
 $personaTarget = Join-Path $MemoryDir "persona.md"
-if (Test-Path $personaTarget) {
+if ($Persona -eq "none") {
+  if (Test-Path $personaTarget) {
+    Write-Warning "已存在 persona.md；-Persona none 不会删除它。确定不用人设时请手动删除（git 历史可恢复）；已有 MEMORY.md 索引也不会自动改写。"
+  } else {
+    Write-Host "  不用人设：未创建 persona.md（插件会自动跳过）"
+  }
+} elseif (Test-Path $personaTarget) {
   Write-Host "  已存在，跳过：$personaTarget"
 } else {
-  if (-not (Test-Path -LiteralPath $PersonaPath -PathType Leaf)) { throw "人设源文件不存在：$PersonaPath" }
+  if (-not (Test-Path -LiteralPath $PersonaPath -PathType Leaf)) { throw "人设源文件不存在：$PersonaPath（-Persona $Persona）" }
   $personaText = [System.IO.File]::ReadAllText((Resolve-Path -LiteralPath $PersonaPath).Path, [System.Text.Encoding]::UTF8)
   if ([string]::IsNullOrWhiteSpace($personaText)) { throw "人设源文件为空：$PersonaPath" }
   if ($personaText.Length -gt 2600) { throw "人设源文件超出 2600 字符：$($personaText.Length)" }
+  $personaLabel = if ($PSBoundParameters.ContainsKey("PersonaPath")) { "自定义" } else { $Persona }
+  Write-Host "  人设：$personaLabel => $personaTarget"
   Write-IfMissing $personaTarget $personaText
 }
 
@@ -719,8 +772,8 @@ param(
   [Parameter(Mandatory = $true)][string]$AgentId,
   [Parameter(Mandatory = $true)][string]$MemoryDir,
   [string]$Inbox = "$env:USERPROFILE\.letta-bridge\inbox\notes.jsonl",
-  [string]$CuratorPrompt = (Join-Path $PSScriptRoot "..\prompts\memory-curator.md"),
-  [string]$WeeklyPrompt = (Join-Path $PSScriptRoot "..\prompts\weekly-reflection.md"),
+  [string]$CuratorPrompt,
+  [string]$WeeklyPrompt,
   [int]$MaxNotes = 200,
   [int]$WeeklyEveryDays = 7,
   # 立即执行一次周整理（不看上次日期）
@@ -730,6 +783,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+# PS 5.1 在 -File 模式下绑定 [Parameter] 参数时 $PSScriptRoot 为空，默认值必须在脚本体内补。
+if (-not $CuratorPrompt) { $CuratorPrompt = Join-Path $PSScriptRoot "..\prompts\memory-curator.md" }
+if (-not $WeeklyPrompt) { $WeeklyPrompt = Join-Path $PSScriptRoot "..\prompts\weekly-reflection.md" }
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 $dir = Split-Path $Inbox -Parent
 $processing = Join-Path $dir "notes.processing.jsonl"
@@ -865,7 +921,9 @@ param(
   [Parameter(Mandatory = $true)][string]$MemoryDir,
   [string]$Inbox = "$env:USERPROFILE\.letta-bridge\inbox\notes.jsonl",
   [string]$DshHome = "",
-  [string]$Profile = "desktop"
+  [string]$Profile = "desktop",
+  # 不用人设模式（setup -Persona none）：persona.md 缺失属正常，不报失败
+  [switch]$NoPersona
 )
 
 $ok = $true
@@ -882,6 +940,11 @@ if (Test-Path $MemoryDir) {
   Check "是 git 仓库（Letta MemFS 应自带）" (Test-Path (Join-Path $MemoryDir ".git"))
   foreach ($f in @("MEMORY.md", "persona.md", "human.md")) {
     $p = Join-Path $MemoryDir $f
+    if ($f -eq "persona.md" -and $NoPersona) {
+      if (Test-Path $p) { Write-Host "  [info] persona.md 存在；-NoPersona 只影响校验，不会删除文件" -ForegroundColor Yellow }
+      else { Write-Host "  [info] persona.md 不存在（不用人设模式，正常）" -ForegroundColor Gray }
+      continue
+    }
     if (Test-Path $p) {
       $len = (Get-Content $p -Raw -Encoding UTF8).Length
       $limit = if ($f -eq "human.md") { 1400 } elseif ($f -eq "persona.md") { 2600 } else { 1000 }
@@ -1170,7 +1233,7 @@ process.stdout.write(JSON.stringify(plan, null, 1))
 
 ### 5.11 `persona.md`
 
-陪聊的人设源文件，不是 Letta 后台记忆管家的系统指令。初始化脚本仅在 `<MEMORY_DIR>/persona.md` 缺失时复制；在线插件仍读取实际 MemFS 中的文件。仓库 `personas/` 目录另有四张备选卡（gentle / tsundere / genki / literary），初始化时用 `-PersonaPath` 选择（见 Step 4 第 3 小步）；本文只内嵌默认小鲸。
+陪聊的人设源文件，不是 Letta 后台记忆管家的系统指令。初始化脚本仅在 `<MEMORY_DIR>/persona.md` 缺失时复制，源文件由 `-Persona` 从 `personas/` 选择（默认 `whale.md`，缺失时回退仓库根 `persona.md`），或用 `-PersonaPath` 自定义；`-Persona none` 不创建该文件。在线插件仍读取实际 MemFS 中的文件；本文只内嵌默认小鲸。
 
 ```markdown
 ---
@@ -1302,23 +1365,30 @@ Get-ChildItem "$env:USERPROFILE\.letta" -Recurse -Directory -Depth 4 | Where-Obj
 
 `<MEMORY_DIR>` 必须满足：是 agent 自己会改写的那个目录、里面有 `.git`。**不要**使用 `~/.letta/memory` 这类自己新建的目录——插件读的和管家写的必须是同一个目录。
 
-3. 初始化骨架和收件箱——**先问用户要用哪张人设，再执行**（§0 第 10 条）：
+3. 初始化骨架和收件箱——**先问用户要用哪张人设，再执行**（§0 第 10 条）。用 `-Persona` 直接选卡：
 
-   - **默认小鲸**：`$BRIDGE\persona.md`（萌系宠物，全文见 §5.11），省略 `-PersonaPath` 即用它。
-   - **四张备选卡**：`$BRIDGE\personas\` 目录的 `gentle.md`（温柔治愈）、`tsundere.md`（清冷傲娇）、`genki.md`（活泼元气）、`literary.md`（沉稳文艺）。拿到整个仓库文件夹时才有；只拿到本文时用默认小鲸，或向用户要人设源文件，不要自行编写。
-   - **不用人设**：陪聊只有记忆、没有角色表演，操作见下。
+   - **默认小鲸**：`-Persona whale`（省略即默认）→ 复制 `$BRIDGE\personas\whale.md`。
+   - **四张备选卡**：`-Persona gentle`（温柔治愈）、`-Persona tsundere`（清冷傲娇）、`-Persona genki`（活泼元气）、`-Persona literary`（沉稳文艺）。只拿到本文、没有整个仓库时，这些人设库文件不存在；用默认小鲸，或向用户要人设源文件并用 `-PersonaPath` 指定，不要自行编写。
+   - **不用人设**：`-Persona none`——不创建 `persona.md`，陪聊只有记忆、没有角色表演，插件自动跳过。注意：对已存在 `persona.md` 的旧 MemFS，`none` **不会删除文件**，只给警告；确需停用请手动删除（git 历史可恢复）。
+   - **自定义卡**：`-PersonaPath <文件>`；与 `-Persona` 互斥。
 
    选卡示例（傲娇黑猫）：
 
 ```powershell
-powershell -NoProfile -File "$BRIDGE\scripts\setup-letta.ps1" -MemoryDir "<MEMORY_DIR>" -PersonaPath "$BRIDGE\personas\tsundere.md"
+powershell -NoProfile -File "$BRIDGE\scripts\setup-letta.ps1" -MemoryDir "<MEMORY_DIR>" -Persona tsundere
 ```
 
-   **不用人设**：先按上面正常初始化，再删除 `<MEMORY_DIR>\persona.md`——插件对缺失的核心文件自动跳过，无需改任何配置；源文件仍在仓库、MemFS 有 git 历史，随时可恢复。此模式下 `verify.ps1` 报 `[FAIL] persona.md 存在` 属预期，其余项仍须通过（见 §7 第 1 条）。
+   不用人设示例：
+
+```powershell
+powershell -NoProfile -File "$BRIDGE\scripts\setup-letta.ps1" -MemoryDir "<MEMORY_DIR>" -Persona none
+```
+
+   初始化脚本会把仓库 `personas/*.md` 同步到 `<MEMORY_DIR>\personas\`（只补缺失、不覆盖，不占 5600 核心预算），供以后换卡时按需读取。此模式下 `verify.ps1` 请加 `-NoPersona`，否则 `persona.md 存在` 会按失败报（见 §7 第 1 条）。
 
    初始化之后想换卡：让管家空闲，把 `<MEMORY_DIR>\persona.md` 替换为目标卡内容并 git commit，插件按 mtime 热刷新；聊天驱动的切换机制见 `personas/README.md`（设计提案，未实现）。
 
-初始化脚本默认从 `$BRIDGE\persona.md` 复制人设（可用 `-PersonaPath` 指定其他源文件）；已有 MemFS 人设不会覆盖。更新已运行的陪聊时，先核实实际目录、让管家空闲，再将审核后的内容同步到该目录。修改仓库源文件不会自动同步已有 MemFS。已有 profile 若显式配置 `maxCoreChars: 4000` 或 `5000`，也需更新为 5600；文件内容变化会热刷新，插件配置的重新加载按宿主流程处理。
+初始化脚本默认从 `$BRIDGE\personas\whale.md` 复制人设（该文件缺失时回退仓库根 `persona.md`）；`-Persona` 选卡，`-PersonaPath` 自定义源文件；已有 MemFS 人设不会覆盖。更新已运行的陪聊时，先核实实际目录、让管家空闲，再将审核后的内容同步到该目录。修改仓库源文件不会自动同步已有 MemFS。已有 profile 若显式配置 `maxCoreChars: 4000` 或 `5000`，也需更新为 5600；文件内容变化会热刷新，插件配置的重新加载按宿主流程处理。
 
 4. **核实 headless 能改记忆**（这一步不过，dream 永远是空转）：
 
@@ -1408,7 +1478,7 @@ powershell -NoProfile -File "$BRIDGE\scripts\dream.ps1" -AgentId "<AGENT_ID>" -M
 
 | # | 操作 | 预期 |
 |---|---|---|
-| 1 | `powershell -NoProfile -File "$BRIDGE\scripts\verify.ps1" -MemoryDir "<MEMORY_DIR>" -DshHome "<DSH_HOME>"` | 全 `[OK]`；核心文件字数在上限内。「不用人设」模式（Step 4 第 3 小步）下 `persona.md 存在` 为 `[FAIL]` 属预期，其余项须全过 |
+| 1 | `powershell -NoProfile -File "$BRIDGE\scripts\verify.ps1" -MemoryDir "<MEMORY_DIR>" -DshHome "<DSH_HOME>"`（`-Persona none` 时追加 `-NoPersona`） | 全 `[OK]`；核心文件字数在上限内。`-NoPersona` 下 `persona.md` 缺失按 `[info]` 处理 |
 | 2 | QQ 私聊问"我叫什么/上次聊了什么" | 答出 `human.md` / `events/` 里的内容，**不复述**、不说"根据我的记忆" |
 | 3 | QQ 私聊说"记住我不吃香菜" → 查收件箱 | `notes.jsonl` 多一行 `{"ts":…,"text":"…","source":"dsh"}` |
 | 4 | 跑 `dream.ps1` → 查 `human.md` 与 `inbox\archive\` | 「偏好」多一条；出现 `processed-*.jsonl` |

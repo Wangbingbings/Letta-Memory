@@ -74,7 +74,7 @@
 
 整理规则：日常 [prompts/memory-curator.md](prompts/memory-curator.md)，每周叠加 [prompts/weekly-reflection.md](prompts/weekly-reflection.md)，`dream.ps1` 每次读它们。人设被改坏时用 MemFS 的 git 历史回滚。
 
-仓库根目录的 [persona.md](persona.md) 是不预设姓名的人设源文件，初始化脚本在 MemFS 缺少 persona 时原样复制；已有文件保留，也可用 `-PersonaPath` 指定另一份人设。插件实际读取的是配置的 `<MEMORY_DIR>/persona.md`，修改仓库源文件不会自动同步已有 MemFS。
+仓库根目录的 [persona.md](persona.md) 是不预设姓名的人设源文件；初始化脚本用 `-Persona` 从 `personas/` 选卡（默认 `whale`，`none` 表示不装人设），或用 `-PersonaPath` 指定另一份人设，仅在 MemFS 缺少 persona 时原样复制；已有文件保留。插件实际读取的是配置的 `<MEMORY_DIR>/persona.md`，修改仓库源文件不会自动同步已有 MemFS。
 
 三份常驻文件在上一版基线上各增加 200 字符：persona 2600、human 1400、MEMORY 1000，合计 5000 字符。插件 `maxCoreChars` 同步从 5000 提至 5600，保留原有 600 字符余量，避免后置的 human 被截断。上限是 UTF-16 字符数，不等于 token 数；核心正文去掉 frontmatter 后共享总预算，格式也计入字符。人设每轮常驻，答复前静默核对，不维护“每十轮”计数或每轮改写文件。
 
@@ -136,7 +136,7 @@ letta-bridge/
 │   └── lib/index.js
 ├── scripts/
 │   ├── find-dsh.ps1              ← 找 DSH_HOME / desktop profile
-│   ├── setup-letta.ps1           ← 补齐 MemFS 骨架 + 收件箱目录
+│   ├── setup-letta.ps1           ← 补齐 MemFS 骨架 + 人设选择（-Persona）/ 人设库 + 收件箱目录
 │   ├── dream.ps1                 ← 做梦：每天整合 + 每周深化与遗忘（并发安全、失败可续跑）
 │   ├── forget-plan.mjs           ← 遗忘计划（确定性规则，0 LLM）
 │   └── verify.ps1                ← 体检

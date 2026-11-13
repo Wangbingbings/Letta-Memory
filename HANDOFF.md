@@ -485,7 +485,13 @@ export function apply(ctx, rawConfig = {}) {
     async execute(args) {
       const target = safeJoin(root, args.path)
       if (!target) return '拒绝：路径越界。'
-      if (!existsSync(target)) return `不存在：${args.path}`
+      let info
+      try {
+        info = statSync(target)
+      } catch {
+        return `不存在：${args.path}`
+      }
+      if (!info.isFile()) return `拒绝：不是文件：${args.path}`
       const text = readFileSync(target, 'utf8')
       logRecall(recallLog, [target.slice(root.length + 1).replace(/\\/g, '/')], config, 'read')
       return text.length > 20000 ? text.slice(0, 20000) + '\n…（已截断）' : text

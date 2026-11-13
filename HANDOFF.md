@@ -1288,13 +1288,16 @@ letta connect          # ← 交互式：选 DeepSeek，粘 API Key（交给用�
 1. 建 agent（参数以 `letta --help` 为准，下面是示例写法），并把 §5.8 规则作为它的人设/指令：
 
 ```powershell
-letta --backend local --new-agent --name "记忆管家" -p "读一遍你的 memory 目录，用一句话说出它的绝对路径和里面有哪些文件。"
+# 注意：--name 与 --new-agent 互斥，CLI 会直接报 "Error: --name cannot be used with --new-agent"。
+# 本地后端建 agent 时不要带 --name；建完用磁盘目录确认它的 ID（见下一小步）。
+letta --backend local --new-agent -p "读一遍你的 memory 目录，用一句话说出它的绝对路径和里面有哪些文件。"
 ```
 
-2. 拿 `<AGENT_ID>` 和 `<MEMORY_DIR>`。**以 agent 自己报告的路径为准**，再到磁盘上核对：
+2. 拿 `<AGENT_ID>` 和 `<MEMORY_DIR>`。**以 agent 自己报告的路径为准**，再到磁盘上核对（`letta agents list` 走云端 API，本地后端 agent 要用目录确认）：
 
 ```powershell
-Get-ChildItem "$env:USERPROFILE\.letta" -Recurse -Directory -Depth 3 | Where-Object { $_.Name -eq 'memory' } | Select-Object FullName, LastWriteTime
+# 本地后端（--backend local）的 MemFS 在 ~/.letta/lc-local-backend/memfs/<AGENT_ID>/memory
+Get-ChildItem "$env:USERPROFILE\.letta" -Recurse -Directory -Depth 4 | Where-Object { $_.Name -eq 'memory' } | Select-Object FullName, LastWriteTime
 ```
 
 `<MEMORY_DIR>` 必须满足：是 agent 自己会改写的那个目录、里面有 `.git`。**不要**使用 `~/.letta/memory` 这类自己新建的目录——插件读的和管家写的必须是同一个目录。
